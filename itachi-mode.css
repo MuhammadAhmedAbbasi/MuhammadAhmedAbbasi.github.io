@@ -14,3 +14,16 @@ body.itachi-mode{--ink:#f7f4f5;--muted:#bcb5b8;--cyan:#ff405b;--violet:#e8e0e3;-
 .itachi-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
 .itachi-overlay .itachi-skip{opacity:1!important}
 .itachi-mode .profile{padding-top:24px}
+
+/* Transparent character perched on the same ledge that spans the profile. */
+.itachi-mode main{position:relative;z-index:1}
+.itachi-weather{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.itachi-stage{width:min(1080px,calc(100% - 40px));height:195px!important;background:transparent;overflow:visible;isolation:isolate;margin-top:8px}
+.itachi-stage:before{display:block;inset:auto;left:50%;top:10px;width:250px;height:180px;border-radius:0;background:radial-gradient(ellipse,rgba(171,116,129,.26),transparent 70%);box-shadow:none;transform:translateX(-50%)}
+.itachi-stage:after{display:block;left:0;right:0;bottom:9px;border-top:1px solid rgba(183,70,92,.5);box-shadow:0 5px 16px #0008}
+.itachi-stage .itachi-actor{width:185px!important;height:185px!important;bottom:7px;background:none;filter:drop-shadow(0 0 1px rgba(209,171,181,.6));z-index:2}
+.itachi-actor img{display:block;width:100%;height:100%;object-fit:contain}
+.itachi-retry{position:absolute;left:24px;bottom:24px;z-index:5}
+.itachi-retry[hidden]{display:none}
+@media(max-width:650px){.itachi-stage{width:calc(100% - 28px);height:165px!important}.itachi-stage .itachi-actor{width:155px!important;height:155px!important}}
+@media(prefers-reduced-motion:reduce){.itachi-weather{display:none}}
