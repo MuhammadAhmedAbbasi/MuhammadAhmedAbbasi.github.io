@@ -22,14 +22,18 @@
   const message = document.createElement('span'); message.className = 'itachi-message'; message.setAttribute('role','status'); body.append(message);
   const canvas = document.createElement('canvas'); canvas.className = 'itachi-canvas'; canvas.setAttribute('aria-hidden','true'); body.append(canvas);
   const ctx = canvas.getContext('2d');
-  const audio = overlay.querySelector('video'); audio.volume = .7;
+  const audio = overlay.querySelector('video'); audio.volume = .7; audio.playbackRate = 1.15;
   audio.addEventListener('ended', () => {if(intro && audio.ended) later(finish, 900);});
   audio.addEventListener('error', () => {if(intro) playbackProblem();});
   function playbackProblem(){retry.hidden=false;message.textContent='Playback interrupted. Retry the video or skip the intro.';}
   function playIntro(){retry.hidden=true;audio.play().catch(()=>{if(!intro)return;audio.muted=true;audio.play().catch(()=>{if(intro)playbackProblem();});});}
-  retry.addEventListener('click',()=>{audio.load();audio.currentTime=0;playIntro();});
+  retry.addEventListener('click',()=>{audio.load();audio.currentTime=0;audio.playbackRate=1.15;playIntro();});
   const art = new Image(); art.src = 'assets/itachi/seated.png';
   const bat = new Image(); bat.src = 'assets/itachi/bat.png';
+  const rainAudio = new Audio('assets/itachi/Rain_audio.mp3');
+  const thunderAudio = new Audio('assets/itachi/Thurnderstorm.mp3');
+  rainAudio.loop = true; rainAudio.volume = .22;
+  thunderAudio.volume = .5;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const coarse = matchMedia('(pointer: coarse)');
   let active = false, intro = false, muted = false, timers = [], particles = [], raf = 0, last = 0, elapsed = 0, lastPointer = 0;
@@ -53,22 +57,21 @@
   const weatherCtx=weather.getContext('2d');
   function sizeWeather(){const d=Math.min(devicePixelRatio||1,2);weather.width=innerWidth*d;weather.height=innerHeight*d;if(weatherCtx)weatherCtx.setTransform(d,0,0,d,0,0);}
   sizeWeather();addEventListener('resize',sizeWeather,{passive:true});
-  let stormAudio,stormGain,rainSource,nextFlash=12,flash=0;
-  function unlockStorm(){try{if(!stormAudio){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;stormAudio=new AC();stormGain=stormAudio.createGain();stormGain.gain.value=0;stormGain.connect(stormAudio.destination);
-    const buffer=stormAudio.createBuffer(1,stormAudio.sampleRate*4,stormAudio.sampleRate);const data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*.65;
-    rainSource=stormAudio.createBufferSource();rainSource.buffer=buffer;rainSource.loop=true;const filter=stormAudio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=2400;rainSource.connect(filter);filter.connect(stormGain);rainSource.start();}stormAudio.resume().catch(()=>{});}catch(e){message.textContent='Weather sound is unavailable in this browser.';}}
-  function startStorm(){elapsed=0;nextFlash=10+Math.random()*5;flash=0;if(stormAudio)stormGain.gain.setTargetAtTime(muted?0:.18,stormAudio.currentTime,.8);}
-  function stopStorm(){if(stormAudio){stormGain.gain.cancelScheduledValues(stormAudio.currentTime);stormGain.gain.value=0;stormAudio.suspend();}if(weatherCtx)weatherCtx.clearRect(0,0,width,height);}
-  function thunder(){if(!stormAudio||muted||document.hidden)return;const t=stormAudio.currentTime;const b=stormAudio.createBuffer(1,stormAudio.sampleRate*4,stormAudio.sampleRate),d=b.getChannelData(0);let v=0;for(let i=0;i<d.length;i++){v=(v+(Math.random()*2-1)*.06)/1.02;d[i]=v*4;}const source=stormAudio.createBufferSource();source.buffer=b;const low=stormAudio.createBiquadFilter();low.type='lowpass';low.frequency.value=170;const gain=stormAudio.createGain();gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(1.7,t+.6);gain.gain.exponentialRampToValueAtTime(.001,t+4);source.connect(low);low.connect(gain);gain.connect(stormGain);source.start(t);source.onended=()=>{source.disconnect();low.disconnect();gain.disconnect();};}
+  let nextFlash=5,flash=0,lightningBolt=[];
+  function unlockStorm(){rainAudio.muted=muted;thunderAudio.muted=muted;}
+  function startStorm(){elapsed=0;nextFlash=5;flash=0;rainAudio.muted=muted;rainAudio.play().catch(()=>{message.textContent='Rain audio is unavailable in this browser.';});}
+  function stopStorm(){rainAudio.pause();rainAudio.currentTime=0;thunderAudio.pause();thunderAudio.currentTime=0;if(weatherCtx)weatherCtx.clearRect(0,0,width,height);}
+  function lightning(){flash=.42;const x=width*(.18+Math.random()*.64),points=[[x,-10]];let y=-10,boltX=x;while(y<height*.65){y+=35+Math.random()*55;boltX+=(Math.random()-.5)*72;points.push([boltX,y]);}lightningBolt=points;if(!muted&&!document.hidden){thunderAudio.currentTime=0;thunderAudio.play().catch(()=>{});}}
+  function drawLightning(){if(!lightningBolt.length||flash<=0||!weatherCtx)return;weatherCtx.save();weatherCtx.globalAlpha=Math.min(1,flash*2.4);weatherCtx.strokeStyle='#f5fbff';weatherCtx.lineWidth=2.4;weatherCtx.shadowColor='#b7d7ff';weatherCtx.shadowBlur=20;weatherCtx.beginPath();lightningBolt.forEach((point,index)=>index?weatherCtx.lineTo(point[0],point[1]):weatherCtx.moveTo(point[0],point[1]));weatherCtx.stroke();weatherCtx.restore();}
   function drawWeather(dt){if(!weatherCtx)return;weatherCtx.clearRect(0,0,width,height);if(intro||!active||reduced.matches)return;
-    weatherCtx.strokeStyle='rgba(195,204,219,.22)';weatherCtx.lineWidth=.7;weatherCtx.beginPath();for(let i=0;i<(coarse.matches?65:140);i++){const x=((i*127.3-elapsed*45)%width+width)%width,y=(i*73.6+elapsed*(330+i%7*25))%(height+40)-20;weatherCtx.moveTo(x,y);weatherCtx.lineTo(x-5,y+16+i%12);}weatherCtx.stroke();
-    if(elapsed>nextFlash){flash=.12;nextFlash=elapsed+12+Math.random()*12;thunder();}if(flash>0){weatherCtx.fillStyle='rgba(205,218,245,'+flash+')';weatherCtx.fillRect(0,0,width,height);flash=Math.max(0,flash-dt*.3);}
+    weatherCtx.strokeStyle='rgba(215,226,239,.42)';weatherCtx.lineWidth=1;weatherCtx.beginPath();for(let i=0;i<(coarse.matches?65:210);i++){const x=((i*127.3-elapsed*45)%width+width)%width,y=(i*73.6+elapsed*(390+i%7*30))%(height+46)-23;weatherCtx.moveTo(x,y);weatherCtx.lineTo(x-7,y+21+i%14);}weatherCtx.stroke();
+    if(elapsed>nextFlash){lightning();nextFlash=elapsed+5;}if(flash>0){weatherCtx.fillStyle='rgba(219,231,255,'+(flash*.46)+')';weatherCtx.fillRect(0,0,width,height);drawLightning();flash=Math.max(0,flash-dt*1.8);}else{lightningBolt=[];}
   }
   function startFrames(){if(!raf&&!reduced.matches&&!document.hidden){last=0;raf=requestAnimationFrame(frame);}}
   function finish(){if(!active||!intro)return;clearTimers();audio.pause();intro=false;startStorm();main.inert=false;body.style.overflow=previousOverflow;stage.hidden=false;body.classList.add('itachi-revealed');overlay.classList.add('itachi-fade');toggle.disabled=false;toggle.textContent='Normal Mode';toggle.focus({preventScroll:true});message.textContent='Itachi Mode enabled.';later(()=>{overlay.hidden=true;},650);}
   function disable(){clearTimers();stopStorm();active=false;intro=false;audio.pause();audio.currentTime=0;main.inert=false;body.style.overflow=previousOverflow;body.classList.remove('itachi-mode','itachi-revealed');stage.hidden=true;overlay.hidden=true;toggle.textContent='Itachi Mode';toggle.disabled=false;toggle.setAttribute('aria-pressed','false');sound.hidden=true;particles=[];cancelAnimationFrame(raf);raf=0;if(ctx)ctx.clearRect(0,0,width,height);message.textContent='Normal Mode enabled.';}
   function enable(){unlockStorm();active=true;intro=true;retry.hidden=true;previousOverflow=body.style.overflow;body.classList.add('itachi-mode');toggle.setAttribute('aria-pressed','true');toggle.disabled=true;sound.hidden=false;overlay.hidden=false;overlay.classList.remove('itachi-fade');overlay.dataset.scene='black';main.inert=true;body.style.overflow='hidden';skip.focus({preventScroll:true});
-    audio.currentTime=0;audio.muted=muted;
+    audio.currentTime=0;audio.playbackRate=1.15;audio.muted=muted;
     startFrames();
     // Playback starts inside the click gesture; the clip owns the full entrance timing and sound.
     playIntro();
@@ -77,9 +80,9 @@
   toggle.addEventListener('click',()=>active?disable():enable());
   skip.addEventListener('click',finish);
   addEventListener('keydown',e=>{if(intro&&e.key==='Escape'){e.preventDefault();finish();}if(intro&&e.key==='Tab'){e.preventDefault();if(!retry.hidden&&document.activeElement===skip)retry.focus();else skip.focus();}});
-  sound.addEventListener('click',()=>{muted=!muted;audio.muted=muted;if(stormGain)stormGain.gain.setTargetAtTime(active&&!intro&&!muted?.18:0,stormAudio.currentTime,.2);sound.textContent=muted?'Unmute sound':'Mute sound';sound.setAttribute('aria-pressed',String(muted));});
+  sound.addEventListener('click',()=>{muted=!muted;audio.muted=muted;rainAudio.muted=muted;thunderAudio.muted=muted;sound.textContent=muted?'Unmute sound':'Mute sound';sound.setAttribute('aria-pressed',String(muted));});
   addEventListener('pointermove',e=>{if(!active||intro||coarse.matches||reduced.matches)return;if(performance.now()-lastPointer<90)return;lastPointer=performance.now();addBats(e.clientX,e.clientY,2);},{passive:true});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){if(stormAudio)stormAudio.suspend();audio.pause();cancelAnimationFrame(raf);raf=0;}else if(active){if(stormAudio)stormAudio.resume().catch(()=>{});startFrames();if(intro&&!audio.ended)playIntro();}});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){rainAudio.pause();thunderAudio.pause();audio.pause();cancelAnimationFrame(raf);raf=0;}else if(active){if(!intro)startStorm();startFrames();if(intro&&!audio.ended)playIntro();}});
   reduced.addEventListener('change',()=>{if(reduced.matches){cancelAnimationFrame(raf);raf=0;if(ctx)ctx.clearRect(0,0,width,height);if(weatherCtx)weatherCtx.clearRect(0,0,width,height);}else if(active)startFrames();});
   art.onerror=()=>{message.textContent='Character artwork could not load. Please refresh to try again.';};
 })();
